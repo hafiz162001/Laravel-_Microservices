@@ -1,0 +1,121 @@
+services:
+  # ==========================================
+  # 1. API GATEWAY (Reverse Proxy)
+  # ==========================================
+  gateway:
+    image: nginx:alpine
+    container_name: micro_gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./gateway/default.conf:/etc/nginx/nginx.conf:ro
+      - ./gateway/html:/usr/share/nginx/html:ro
+    depends_on:
+      - auth-service
+      - order-service
+    networks:
+      - micro-network
+
+  # ==========================================
+  # 2. MESSAGE BROKER (RabbitMQ)
+  # ==========================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: micro_rabbitmq
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Web Management UI (guest:guest)
+    networks:
+      - micro-network
+
+  # ==========================================
+  # 3. AUTH SERVICE (Laravel)
+  # ==========================================
+  auth-db:
+    image: postgres:16-alpine
+    container_name: micro_auth_db
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: laravel
+      POSTGRES_PASSWORD: secretpassword
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    networks:
+      - micro-network
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: micro_auth_service
+    environment:
+      APP_NAME: "AuthService"
+      APP_ENV: local
+      APP_KEY: "base64:authservicekeyplaceholdershouldbe32bytes="
+      APP_DEBUG: "true"
+      DB_CONNECTION: pgsql
+      DB_HOST: auth-db
+      DB_PORT: 5432
+      DB_DATABASE: auth_db
+      DB_USERNAME: laravel
+      DB_PASSWORD: secretpassword
+      JWT_SECRET: "super-secret-jwt-key-for-microservices-demo-2026"
+    depends_on:
+      - auth-db
+      - rabbitmq
+    networks:
+      - micro-network
+
+  # ==========================================
+  # 4. ORDER SERVICE (Laravel)
+  # ==========================================
+  order-db:
+    image: postgres:16-alpine
+    container_name: micro_order_db
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: laravel
+      POSTGRES_PASSWORD: secretpassword
+    volumes:
+      - order_db_data:/var/lib/postgresql/data
+    networks:
+      - micro-network
+
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+    container_name: micro_order_service
+    volumes:
+      - ./services/order-service:/var/www
+    environment:
+      APP_NAME: "OrderService"
+      APP_ENV: local
+      APP_KEY: "base64:orderservicekeyplaceholdershouldbe32bytes="
+      APP_DEBUG: "true"
+      DB_CONNECTION: pgsql
+      DB_HOST: order-db
+      DB_PORT: 5432
+      DB_DATABASE: order_db
+      DB_USERNAME: laravel
+      DB_PASSWORD: secretpassword
+      JWT_SECRET: "super-secret-jwt-key-for-microservices-demo-2026"
+      AUTH_SERVICE_URL: "http://auth-service:8000"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      - order-db
+      - rabbitmq
+    networks:
+      - micro-network
+
+networks:
+  micro-network:
+    driver: bridge
+
+volumes:
+  auth_db_data:
+  order_db_data:
+

@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShopeeCyan - Microservices Marketplace</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f5f7fa;
+        }
+        .shopee-cyan-gradient {
+            background: linear-gradient(180deg, #0891b2 0%, #06b6d4 100%);
+        }
+        .shopee-cyan-dark {
+            background: linear-gradient(180deg, #0e7490 0%, #0891b2 100%);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Top Mini Bar (Shopee Style) -->
+    <div class="bg-cyan-800 text-cyan-100 text-[11px] py-1 px-4 border-b border-cyan-700/50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <span class="hover:text-white cursor-pointer transition">Seller Centre</span>
+                <span class="text-cyan-600">|</span>
+                <span class="hover:text-white cursor-pointer transition">Download Aplikasi</span>
+                <span class="text-cyan-600">|</span>
+                <span class="flex items-center gap-1">
+                    Ikuti kami di 
+                    <i class="fa-brands fa-facebook hover:text-white cursor-pointer ml-1"></i>
+                    <i class="fa-brands fa-instagram hover:text-white cursor-pointer ml-1"></i>
+                </span>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/healthz" target="_blank" class="hover:text-white flex items-center gap-1 transition">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Gateway Status
+                </a>
+                <span class="text-cyan-600">|</span>
+                <a href="http://localhost:15672" target="_blank" class="hover:text-white flex items-center gap-1 transition font-semibold text-amber-300">
+                    <i class="fa-solid fa-server"></i>
+                    RabbitMQ Broker
+                </a>
+                <span class="text-cyan-600">|</span>
+                <span class="hover:text-white cursor-pointer flex items-center gap-1">
+                    <i class="fa-regular fa-circle-question"></i> Bantuan
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Header (Shopee Style in Cyan) -->
+    <header class="shopee-cyan-gradient text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between gap-6">
+                
+                <!-- Logo -->
+                <div class="flex items-center gap-2 cursor-pointer select-none" onclick="window.scrollTo({top:0, behavior:'smooth'})">
+                    <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-lg text-cyan-600">
+                        <i class="fa-solid fa-bag-shopping text-2xl"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-1">
+                            <span class="text-2xl font-black tracking-tight text-white">Shopee</span>
+                            <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-white text-cyan-700 uppercase tracking-wider">Cyan</span>
+                        </div>
+                        <p class="text-[10px] text-cyan-100 tracking-wide font-medium">Laravel Microservices Edition</p>
+                    </div>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="flex-1 max-w-2xl">
+                    <div class="relative bg-white rounded-md p-1 shadow-inner flex items-center">
+                        <input type="text" id="searchInput" placeholder="Cari layanan KIR, Izin Trayek, atau barang elektronik di Microservices..." class="w-full px-3 py-1.5 text-xs text-slate-800 focus:outline-none placeholder:text-slate-400">
+                        <button class="bg-cyan-600 hover:bg-cyan-700 text-white px-5 py-2 rounded text-xs font-semibold flex items-center gap-1 transition shadow">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                    </div>
+                    <!-- Quick Keywords -->
+                    <div class="flex items-center gap-3 text-[11px] text-cyan-100 mt-1 pl-1">
+                        <span class="hover:underline cursor-pointer" onclick="filterItems('KIR')">Uji KIR</span>
+                        <span class="hover:underline cursor-pointer" onclick="filterItems('Trayek')">Izin Trayek</span>
+                        <span class="hover:underline cursor-pointer" onclick="filterItems('Laptop')">Laptop ThinkPad</span>
+                        <span class="hover:underline cursor-pointer" onclick="filterItems('Monitor')">Monitor Dell 4K</span>
+                        <span class="hover:underline cursor-pointer" onclick="filterItems('')">Semua Produk</span>
+                    </div>
+                </div>
+
+                <!-- Right Action: User Auth & Cart -->
+                <div class="flex items-center gap-4">
+                    <!-- User Profile / Auth Button -->
+                    <div id="authHeaderSection">
+                        <div id="guestButtons" class="flex items-center gap-2 text-xs font-semibold">
+                            <button onclick="openAuthModal('register')" class="hover:text-cyan-100 transition">Daftar</button>
+                            <span class="text-cyan-300">|</span>
+                            <button onclick="openAuthModal('login')" class="hover:text-cyan-100 transition">Log In</button>
+                        </div>
+                        <div id="userProfileBadge" class="hidden flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-full bg-cyan-700 border-2 border-white/50 flex items-center justify-center text-xs font-bold text-white shadow">
+                                <span id="userAvatarText">U</span>
+                            </div>
+                            <div class="text-left">
+                                <p id="headerUserName" class="text-xs font-bold leading-tight truncate max-w-[110px]">User</p>
+                                <div class="flex items-center gap-2 text-[10px] text-cyan-100">
+                                    <button onclick="openOrderDrawer()" class="hover:underline text-amber-200 font-semibold">Pesanan Saya</button>
+                                    <span>•</span>
+                                    <button onclick="logout()" class="hover:underline text-rose-200">Logout</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cart Icon with Order Count -->
+                    <button onclick="openOrderDrawer()" class="relative p-2 text-white hover:text-cyan-100 transition" title="Lihat Pesanan Saya">
+                        <i class="fa-solid fa-cart-shopping text-xl"></i>
+                        <span id="cartBadgeCount" class="absolute -top-1 -right-1 bg-white text-cyan-700 text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
+                            0
+                        </span>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </header>
+
+    <!-- Sub-Banner / Highlights -->
+    <div class="max-w-6xl mx-auto px-4 mt-4 w-full">
+        <!-- Hero Banner Promo Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="md:col-span-2 rounded-xl bg-gradient-to-r from-cyan-600 via-teal-500 to-cyan-500 text-white p-6 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 text-cyan-400/20 text-9xl pointer-events-none">
+                    <i class="fa-solid fa-network-wired"></i>
+                </div>
+                <div>
+                    <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-white/20 backdrop-blur text-white uppercase tracking-wider">
+                        ⚡ Event-Driven Microservices
+                    </span>
+                    <h2 class="text-2xl font-black mt-3 leading-snug">
+                        Beli Cepat, Event Terbit Langsung ke RabbitMQ!
+                    </h2>
+                    <p class="text-xs text-cyan-100 mt-1 max-w-md">
+                        Semua transaksi diproses secara stateless dengan token JWT dan dipublikasikan ke antrean broker secara instan.
+                    </p>
+                </div>
+                <div class="flex items-center gap-3 mt-4">
+                    <button onclick="document.getElementById('productSection').scrollIntoView({behavior:'smooth'})" class="px-4 py-2 rounded-lg bg-white text-cyan-700 text-xs font-bold shadow hover:bg-cyan-50 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-bolt"></i> Belanja Sekarang
+                    </button>
+                    <a href="http://localhost:15672" target="_blank" class="px-3.5 py-2 rounded-lg bg-cyan-700/60 hover:bg-cyan-700 text-white text-xs font-semibold border border-white/20 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-eye"></i> Pantau Antrean
+                    </a>
+                </div>
+            </div>
+
+            <!-- Side Banners -->
+            <div class="flex flex-col gap-3">
+                <div class="rounded-xl bg-white border border-slate-200/80 p-4 shadow-sm flex items-center gap-3.5 hover:shadow-md transition">
+                    <div class="w-12 h-12 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xl flex-shrink-0">
+                        <i class="fa-solid fa-truck-fast"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-800">Gratis Ongkir Microservices</h4>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Proxy Nginx Gateway cepat tanpa latensi</p>
+                    </div>
+                </div>
+                <div class="rounded-xl bg-white border border-slate-200/80 p-4 shadow-sm flex items-center gap-3.5 hover:shadow-md transition">
+                    <div class="w-12 h-12 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center text-xl flex-shrink-0">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-800">Database per Service</h4>
+                        <p class="text-[11px] text-slate-500 mt-0.5">PostgreSQL terisolasi aman & independen</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Pills (Shopee Style) -->
+        <div class="bg-white rounded-xl border border-slate-200/80 p-3 mt-4 shadow-sm flex items-center justify-between gap-2 overflow-x-auto custom-scrollbar text-xs">
+            <button onclick="filterItems('')" class="flex flex-col items-center gap-1.5 px-4 py-2 rounded-lg hover:bg-cyan-50 text-slate-700 hover:text-cyan-700 transition flex-shrink-0 group">
+                <div class="w-9 h-9 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition shadow-sm">
+                    <i class="fa-solid fa-border-all"></i>
+                </div>
+                <span class="font-semibold text-[11px]">Semua Kategori</span>
+            </button>
+            <button onclick="filterItems('Layanan DISHUB')" class="flex flex-col items-center gap-1.5 px-4 py-2 rounded-lg hover:bg-cyan-50 text-slate-700 hover:text-cyan-700 transition flex-shrink-0 group">
+                <div class="w-9 h-9 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition shadow-sm">
+                    <i class="fa-solid fa-bus"></i>
+                </div>
+                <span class="font-semibold text-[11px]">Layanan DISHUB</span>
+            </button>
+            <button onclick="filterItems('Elektronik')" class="flex flex-col items-center gap-1.5 px-4 py-2 rounded-lg hover:bg-cyan-50 text-slate-700 hover:text-cyan-700 transition flex-shrink-0 group">
+                <div class="w-9 h-9 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition shadow-sm">
+                    <i class="fa-solid fa-laptop"></i>
+                </div>
+                <span class="font-semibold text-[11px]">Elektronik & Gadget</span>
+            </button>
+            <button onclick="filterItems('Aksesoris')" class="flex flex-col items-center gap-1.5 px-4 py-2 rounded-lg hover:bg-cyan-50 text-slate-700 hover:text-cyan-700 transition flex-shrink-0 group">
+                <div class="w-9 h-9 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition shadow-sm">
+                    <i class="fa-solid fa-keyboard"></i>
+                </div>
+                <span class="font-semibold text-[11px]">Aksesoris PC</span>
+            </button>
+            <button onclick="filterItems('Voucher')" class="flex flex-col items-center gap-1.5 px-4 py-2 rounded-lg hover:bg-cyan-50 text-slate-700 hover:text-cyan-700 transition flex-shrink-0 group">
+                <div class="w-9 h-9 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition shadow-sm">
+                    <i class="fa-solid fa-ticket"></i>
+                </div>
+                <span class="font-semibold text-[11px]">Voucher Diskon</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Product Section (Shopee Flash Sale & Daily Discover) -->
+    <main id="productSection" class="max-w-6xl mx-auto px-4 py-6 w-full flex-1">
+        
+        <!-- Flash Sale Header Strip -->
+        <div class="bg-white rounded-t-xl border border-slate-200/80 p-3.5 flex items-center justify-between shadow-sm border-b-2 border-b-cyan-500">
+            <div class="flex items-center gap-3">
+                <span class="text-cyan-600 font-black text-sm uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fa-solid fa-bolt-lightning text-amber-500"></i>
+                    FLASH SALE CYAN
+                </span>
+                <span class="text-[11px] font-semibold text-slate-500 hidden sm:inline">Berakhir Dalam</span>
+                <div class="flex items-center gap-1 text-[11px] font-bold text-white">
+                    <span class="bg-slate-800 px-1.5 py-0.5 rounded">02</span> :
+                    <span class="bg-slate-800 px-1.5 py-0.5 rounded">45</span> :
+                    <span class="bg-slate-800 px-1.5 py-0.5 rounded">18</span>
+                </div>
+            </div>
+            <div class="text-xs text-cyan-600 hover:text-cyan-700 font-semibold cursor-pointer">
+                Lihat Semua &rarr;
+            </div>
+        </div>
+
+        <!-- Product Grid -->
+        <div id="productGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mt-3">
+            <!-- Rendered by JavaScript -->
+        </div>
+
+    </main>
+
+    <!-- Footer (Shopee Style) -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-8 text-xs text-slate-500">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+                <div>
+                    <h5 class="font-bold text-slate-800 mb-3 text-xs uppercase tracking-wider">Layanan Pelanggan</h5>
+                    <ul class="space-y-1.5 text-[11px]">
+                        <li class="hover:text-cyan-600 cursor-pointer">Pusat Bantuan</li>
+                        <li class="hover:text-cyan-600 cursor-pointer">Metode Pembayaran</li>
+                        <li class="hover:text-cyan-600 cursor-pointer">Pelacakan Pesanan</li>
+                        <li class="hover:text-cyan-600 cursor-pointer">Garansi ShopeeCyan</li>
+                    </ul>
+                </div>
+                <div>
+                    <h5 class="font-bold text-slate-800 mb-3 text-xs uppercase tracking-wider">Jelajahi ShopeeCyan</h5>
+                    <ul class="space-y-1.5 text-[11px]">
+                        <li class="hover:text-cyan-600 cursor-pointer">Tentang Kami</li>
+                        <li class="hover:text-cyan-600 cursor-pointer">Karir Microservices</li>
+                        <li class="hover:text-cyan-600 cursor-pointer">Kebijakan Privasi</li>
+                        <li class="hover:text-cyan-600 cursor-pointer">Mitra Dishub</li>
+                    </ul>
+                </div>
+                <div>
+                    <h5 class="font-bold text-slate-800 mb-3 text-xs uppercase tracking-wider">Arsitektur Backend</h5>
+                    <ul class="space-y-1.5 text-[11px]">
+                        <li class="flex items-center gap-1.5"><i class="fa-solid fa-server text-cyan-600"></i> Nginx API Gateway (Port 80)</li>
+                        <li class="flex items-center gap-1.5"><i class="fa-solid fa-key text-cyan-600"></i> Auth Service (JWT Stateless)</li>
+                        <li class="flex items-center gap-1.5"><i class="fa-solid fa-cart-shopping text-cyan-600"></i> Order Service (PostgreSQL)</li>
+                        <li class="flex items-center gap-1.5"><i class="fa-solid fa-envelope text-cyan-600"></i> RabbitMQ Message Broker</li>
+                    </ul>
+                </div>
+                <div>
+                    <h5 class="font-bold text-slate-800 mb-3 text-xs uppercase tracking-wider">Keamanan & Kecepatan</h5>
+                    <p class="text-[11px] leading-relaxed">
+                        Dibangun dengan arsitektur modern microservices untuk menjamin performa tanpa jeda dan keandalan sistem berskala besar.
+                    </p>
+                    <div class="mt-3 flex items-center gap-2 text-cyan-600 text-lg">
+                        <i class="fa-brands fa-docker"></i>
+                        <i class="fa-brands fa-laravel"></i>
+                        <i class="fa-brands fa-linux"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="pt-6 border-t border-slate-200 text-center text-[11px] text-slate-400">
+                &copy; 2026 ShopeeCyan Microservices Laboratory. Hak Cipta Dilindungi.
+            </div>
+        </div>
+    </footer>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL: LOGIN & REGISTER (Shopee Style in Cyan) -->
+    <!-- ========================================================================= -->
+    <div id="authModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 transform transition-all animate-in fade-in zoom-in-95 duration-200">
+            
+            <!-- Modal Header -->
+            <div class="shopee-cyan-gradient p-5 text-white flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-bag-shopping text-xl"></i>
+                    <div>
+                        <h3 id="modalAuthTitle" class="font-bold text-base">Masuk ke ShopeeCyan</h3>
+                        <p class="text-[11px] text-cyan-100">Gunakan akun Anda untuk melanjutkan transaksi</p>
+                    </div>
+                </div>
+                <button onclick="closeAuthModal()" class="text-cyan-100 hover:text-white p-1 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Tab Switcher -->
+            <div class="flex border-b border-slate-200 text-xs font-semibold bg-slate-50">
+                <button id="modalTabLogin" onclick="switchAuthTab('login')" class="flex-1 py-3 text-cyan-700 border-b-2 border-cyan-600 font-bold bg-white transition">
+                    Log In
+                </button>
+                <button id="modalTabRegister" onclick="switchAuthTab('register')" class="flex-1 py-3 text-slate-500 hover:text-cyan-600 transition">
+                    Daftar Baru
+                </button>
+            </div>
+
+            <div class="p-6">
+                <!-- Form Login -->
+                <form id="modalLoginForm" onsubmit="submitLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Email Pengguna</label>
+                        <input type="email" id="inputLoginEmail" required placeholder="budi@example.com" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                        <input type="password" id="inputLoginPassword" required placeholder="••••••••" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition">
+                    </div>
+                    <button type="submit" id="btnModalLogin" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-xs font-bold shadow-md shadow-cyan-600/20 transition flex items-center justify-center gap-2">
+                        <span>LOG IN</span>
+                    </button>
+                </form>
+
+                <!-- Form Register -->
+                <form id="modalRegisterForm" onsubmit="submitRegister(event)" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap</label>
+                        <input type="text" id="inputRegName" required placeholder="Budi Santoso" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Email Pengguna</label>
+                        <input type="email" id="inputRegEmail" required placeholder="budi@example.com" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Password (min. 6 karakter)</label>
+                        <input type="password" id="inputRegPassword" minlength="6" required placeholder="password123" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition">
+                    </div>
+                    <button type="submit" id="btnModalRegister" class="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold shadow-md shadow-teal-600/20 transition flex items-center justify-center gap-2">
+                        <span>DAFTAR SEKARANG</span>
+                    </button>
+                </form>
+
+                <!-- Microservice Info Tip -->
+                <div class="mt-5 p-3 rounded-lg bg-cyan-50 border border-cyan-100 text-[11px] text-cyan-800 flex items-start gap-2">
+                    <i class="fa-solid fa-circle-info text-cyan-600 mt-0.5"></i>
+                    <span>Setelah login sukses, Anda akan menerima <strong>Stateless JWT</strong> dari <code>auth-service</code> yang otomatis disimpan di browser Anda.</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- DRAWER / MODAL: PESANAN SAYA (Order History) -->
+    <!-- ========================================================================= -->
+    <div id="orderDrawer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-end">
+        <div class="bg-white w-full max-w-lg h-full shadow-2xl flex flex-col transform transition-transform animate-in slide-in-from-right duration-200">
+            
+            <!-- Drawer Header -->
+            <div class="shopee-cyan-gradient p-4 text-white flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-receipt text-xl"></i>
+                    <div>
+                        <h3 class="font-bold text-sm">Pesanan Saya</h3>
+                        <p class="text-[11px] text-cyan-100">Riwayat transaksi di <code>order-service</code></p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="fetchOrders()" class="text-xs bg-cyan-700/60 hover:bg-cyan-700 px-2.5 py-1 rounded text-white flex items-center gap-1 transition">
+                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                    </button>
+                    <button onclick="closeOrderDrawer()" class="text-cyan-100 hover:text-white p-1 text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Drawer Content (Orders List) -->
+            <div id="orderDrawerList" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50">
+                <div class="text-center py-12 text-slate-400 text-xs">
+                    <i class="fa-solid fa-box-open text-4xl mb-2 text-slate-300"></i>
+                    <p>Memuat daftar pesanan Anda...</p>
+                </div>
+            </div>
+
+            <!-- Drawer Footer -->
+            <div class="p-4 bg-white border-t border-slate-200 text-xs flex justify-between items-center text-slate-600">
+                <span>Total Pesanan: <strong id="totalOrdersCount" class="text-cyan-700">0</strong></span>
+                <a href="http://localhost:15672/#/queues" target="_blank" class="text-cyan-600 hover:text-cyan-700 font-bold flex items-center gap-1">
+                    <i class="fa-solid fa-bolt"></i> Cek RabbitMQ Queue &rarr;
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL: ORDER CONFIRMATION / CHECKOUT -->
+    <!-- ========================================================================= -->
+    <div id="checkoutModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+            <div class="shopee-cyan-gradient p-4 text-white flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-cart-shopping text-lg"></i>
+                    <h3 class="font-bold text-sm">Konfirmasi Pembelian</h3>
+                </div>
+                <button onclick="closeCheckoutModal()" class="text-cyan-100 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div id="checkoutItemIcon" class="w-12 h-12 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center text-xl flex-shrink-0">
+                        <i class="fa-solid fa-box"></i>
+                    </div>
+                    <div>
+                        <h4 id="checkoutItemName" class="font-bold text-xs text-slate-800">Nama Barang</h4>
+                        <p id="checkoutItemPrice" class="text-xs font-extrabold text-cyan-600 mt-0.5">Rp 0</p>
+                    </div>
+                </div>
+
+                <div class="p-3 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 space-y-1">
+                    <p class="font-bold flex items-center gap-1 text-amber-700">
+                        <i class="fa-solid fa-bolt"></i> Apa yang terjadi saat klik tombol di bawah?
+                    </p>
+                    <p>1. Transaksi dicatat di database <code>order_db</code>.</p>
+                    <p>2. Event <strong><code>order.created</code></strong> langsung diterbitkan ke <strong>RabbitMQ</strong> (antrean <code>order_created_queue</code>)!</p>
+                </div>
+
+                <button onclick="executeOrder()" id="btnConfirmOrder" class="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-bold rounded-lg text-xs shadow-md shadow-cyan-600/30 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-check"></i>
+                    BUAT PESANAN SEKARANG
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TOAST NOTIFICATION -->
+    <!-- ========================================================================= -->
+    <div id="toast" class="fixed bottom-6 right-6 px-4 py-3 rounded-xl bg-slate-900/95 text-white text-xs shadow-2xl border border-slate-700 transition transform translate-y-24 opacity-0 flex items-center gap-2.5 z-50 pointer-events-none">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-cyan-400 text-base"></i>
+        <span id="toastMsg" class="font-medium">Notifikasi</span>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- JAVASCRIPT LOGIC (Interacting with Microservices) -->
+    <!-- ========================================================================= -->
+    <script>
+        const API_URL = window.location.origin; // http://localhost
+        let authToken = localStorage.getItem('micro_jwt') || null;
+        let currentUser = JSON.parse(localStorage.getItem('micro_user') || 'null');
+        let selectedProductForCheckout = null;
+
+        // Data Produk ShopeeCyan
+        const PRODUCTS = [
+            {
+                id: 1,
+                name: "Tiket Uji Berkala KIR Kendaraan Bermotor",
+                category: "Layanan DISHUB",
+                price: 150000,
+                originalPrice: 200000,
+                rating: 4.9,
+                sold: "2.4rb",
+                icon: "fa-solid fa-truck",
+                badge: "OFFICIAL DISHUB"
+            },
+            {
+                id: 2,
+                name: "Izin Trayek Angkutan Kota & Pariwisata",
+                category: "Layanan DISHUB",
+                price: 350000,
+                originalPrice: 500000,
+                rating: 4.8,
+                sold: "850",
+                icon: "fa-solid fa-bus-simple",
+                badge: "PRIORITAS"
+            },
+            {
+                id: 3,
+                name: "Smart Card Bukti Lulus Uji Elektronik (BLU-e)",
+                category: "Layanan DISHUB",
+                price: 75000,
+                originalPrice: 100000,
+                rating: 5.0,
+                sold: "4.1rb",
+                icon: "fa-solid fa-id-card",
+                badge: "TERLARIS"
+            },
+            {
+                id: 4,
+                name: "Monitor 4K Dell UltraSharp 27 Inch UHD",
+                category: "Elektronik",
+                price: 8500000,
+                originalPrice: 9900000,
+                rating: 4.9,
+                sold: "320",
+                icon: "fa-solid fa-desktop",
+                badge: "DISKON 15%"
+            },
+            {
+                id: 5,
+                name: "Laptop Lenovo ThinkPad X1 Carbon Gen 11",
+                category: "Elektronik",
+                price: 21500000,
+                originalPrice: 24000000,
+                rating: 5.0,
+                sold: "140",
+                icon: "fa-solid fa-laptop",
+                badge: "STAR SELLER"
+            },
+            {
+                id: 6,
+                name: "Keyboard Mechanical Keychron K2 Wireless RGB",
+                category: "Aksesoris",
+                price: 1450000,
+                originalPrice: 1750000,
+                rating: 4.8,
+                sold: "1.1rb",
+                icon: "fa-solid fa-keyboard",
+                badge: "HOT ITEM"
+            },
+            {
+                id: 7,
+                name: "Voucher BBM Subsidi Angkutan Umum Rp 500k",
+                category: "Voucher",
+                price: 450000,
+                originalPrice: 500000,
+                rating: 4.7,
+                sold: "3.2rb",
+                icon: "fa-solid fa-gas-pump",
+                badge: "SUBSIDI"
+            },
+            {
+                id: 8,
+                name: "Webcam Logitech C922 Pro Full HD 1080p",
+                category: "Aksesoris",
+                price: 1250000,
+                originalPrice: 1400000,
+                rating: 4.9,
+                sold: "890",
+                icon: "fa-solid fa-video",
+                badge: "OFFICIAL"
+            },
+            {
+                id: 9,
+                name: "Surat Rekomendasi Andalalin Dishub",
+                category: "Layanan DISHUB",
+                price: 500000,
+                originalPrice: 650000,
+                rating: 4.8,
+                sold: "120",
+                icon: "fa-solid fa-file-contract",
+                badge: "LEGAL"
+            },
+            {
+                id: 10,
+                name: "Headset Sony WH-1000XM5 Wireless Noise Cancelling",
+                category: "Elektronik",
+                price: 4799000,
+                originalPrice: 5999000,
+                rating: 5.0,
+                sold: "410",
+                icon: "fa-solid fa-headphones",
+                badge: "PREMIUM"
+            },
+            {
+                id: 11,
+                name: "Mouse Wireless Logitech MX Master 3S",
+                category: "Aksesoris",
+                price: 1550000,
+                originalPrice: 1850000,
+                rating: 4.9,
+                sold: "1.9rb",
+                icon: "fa-solid fa-computer-mouse",
+                badge: "BEST SELLER"
+            },
+            {
+                id: 12,
+                name: "Voucher Gratis Parkir Bulanan Dishub",
+                category: "Voucher",
+                price: 100000,
+                originalPrice: 150000,
+                rating: 4.6,
+                sold: "980",
+                icon: "fa-solid fa-square-parking",
+                badge: "HEMAT"
+            }
+        ];
+
+        // Init Lifecycle
+        document.addEventListener('DOMContentLoaded', () => {
+            renderProducts(PRODUCTS);
+            updateAuthUI();
+            if (authToken) {
+                fetchOrders();
+            }
+        });
+
+        // Toast Helper
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.innerText = message;
+            toastIcon.className = isError 
+                ? 'fa-solid fa-circle-exclamation text-rose-400 text-base'
+                : 'fa-solid fa-circle-check text-cyan-400 text-base';
+
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+            }, 3500);
+        }
+
+        // Render Product Cards
+        function renderProducts(items) {
+            const grid = document.getElementById('productGrid');
+            if (items.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400 text-xs">Produk tidak ditemukan.</div>`;
+                return;
+            }
+
+            grid.innerHTML = items.map(p => `
+                <div class="bg-white rounded-lg border border-slate-200 hover:border-cyan-500 shadow-sm hover:shadow-lg transition-all duration-200 flex flex-col justify-between group overflow-hidden">
+                    <div>
+                        <!-- Product Icon / Thumbnail -->
+                        <div class="h-32 bg-gradient-to-tr from-cyan-50 via-slate-50 to-teal-50 flex items-center justify-center relative p-4 group-hover:scale-105 transition-transform duration-300">
+                            <i class="${p.icon} text-4xl text-cyan-600"></i>
+                            <span class="absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-600 text-white uppercase shadow-sm">
+                                ${p.badge}
+                            </span>
+                        </div>
+                        
+                        <!-- Content -->
+                        <div class="p-2.5">
+                            <span class="text-[9px] text-cyan-700 font-semibold block truncate">${p.category}</span>
+                            <h3 class="text-xs font-semibold text-slate-800 line-clamp-2 mt-0.5 h-8 leading-snug group-hover:text-cyan-700 transition" title="${p.name}">
+                                ${p.name}
+                            </h3>
+                            <div class="mt-2 flex items-baseline gap-1.5 flex-wrap">
+                                <span class="text-xs font-extrabold text-cyan-600">Rp ${p.price.toLocaleString('id-ID')}</span>
+                                <span class="text-[10px] text-slate-400 line-through">Rp ${p.originalPrice.toLocaleString('id-ID')}</span>
+                            </div>
+                            <div class="mt-1.5 flex items-center justify-between text-[10px] text-slate-400">
+                                <span class="flex items-center text-amber-400 text-[9px]">
+                                    <i class="fa-solid fa-star"></i>
+                                    <span class="ml-1 text-slate-600 font-semibold text-[10px]">${p.rating}</span>
+                                </span>
+                                <span>Terjual ${p.sold}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Buy Button -->
+                    <div class="p-2.5 pt-0">
+                        <button onclick="triggerBuy(${p.id})" class="w-full py-1.5 rounded bg-cyan-50 group-hover:bg-cyan-600 text-cyan-700 group-hover:text-white text-[11px] font-bold border border-cyan-200 group-hover:border-cyan-600 transition shadow-sm flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-cart-plus"></i> Beli
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Filter / Search
+        function filterItems(keyword) {
+            if (!keyword) {
+                renderProducts(PRODUCTS);
+                return;
+            }
+            const filtered = PRODUCTS.filter(p => 
+                p.name.toLowerCase().includes(keyword.toLowerCase()) || 
+                p.category.toLowerCase().includes(keyword.toLowerCase())
+            );
+            renderProducts(filtered);
+        }
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            filterItems(e.target.value);
+        });
+
+        // Trigger Buy Action
+        function triggerBuy(productId) {
+            const product = PRODUCTS.find(p => p.id === productId);
+            if (!product) return;
+
+            if (!authToken) {
+                showToast("Silakan Log In terlebih dahulu untuk membeli!", true);
+                openAuthModal('login');
+                return;
+            }
+
+            selectedProductForCheckout = product;
+            document.getElementById('checkoutItemName').innerText = product.name;
+            document.getElementById('checkoutItemPrice').innerText = `Rp ${product.price.toLocaleString('id-ID')}`;
+            document.getElementById('checkoutItemIcon').innerHTML = `<i class="${product.icon}"></i>`;
+            document.getElementById('checkoutModal').classList.remove('hidden');
+        }
+
+        function closeCheckoutModal() {
+            document.getElementById('checkoutModal').classList.add('hidden');
+            selectedProductForCheckout = null;
+        }
+
+        // Execute Order to order-service and publish event to RabbitMQ
+        async function executeOrder() {
+            if (!authToken || !selectedProductForCheckout) return;
+
+            const btn = document.getElementById('btnConfirmOrder');
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> MEMPROSES TRANSAKSI...`;
+
+            try {
+                const res = await fetch(`${API_URL}/api/orders/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        item: selectedProductForCheckout.name,
+                        amount: selectedProductForCheckout.price
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Gagal membuat order');
+
+                closeCheckoutModal();
+                showToast(`Pesanan #${data.order.order_id} BERHASIL & Diterbitkan ke RabbitMQ!`);
+                fetchOrders();
+
+            } catch (err) {
+                showToast('Error: ' + err.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-check"></i> BUAT PESANAN SEKARANG`;
+            }
+        }
+
+        // Fetch Orders for user
+        async function fetchOrders() {
+            if (!authToken) return;
+
+            try {
+                const res = await fetch(`${API_URL}/api/orders/`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (res.status === 401) {
+                    logout();
+                    return;
+                }
+
+                const data = await res.json();
+                const orders = data.orders || [];
+                
+                document.getElementById('cartBadgeCount').innerText = orders.length;
+                document.getElementById('totalOrdersCount').innerText = orders.length;
+
+                const listContainer = document.getElementById('orderDrawerList');
+                if (orders.length === 0) {
+                    listContainer.innerHTML = `
+                        <div class="text-center py-12 text-slate-400 text-xs">
+                            <i class="fa-solid fa-box-open text-4xl mb-2 text-slate-300"></i>
+                            <p>Belum ada pesanan aktif.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                listContainer.innerHTML = orders.map(ord => `
+                    <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                        <div class="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
+                            <span class="font-mono font-bold text-cyan-700">${ord.order_id}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${ord.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-cyan-100 text-cyan-700'}">
+                                ${ord.status}
+                            </span>
+                        </div>
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <h4 class="text-xs font-semibold text-slate-800">${ord.item}</h4>
+                                <p class="text-[10px] text-slate-400 mt-0.5">${ord.created_at || 'Baru saja'}</p>
+                            </div>
+                            <span class="text-xs font-extrabold text-cyan-600">Rp ${Number(ord.amount).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div class="pt-1.5 border-t border-slate-100 text-[10px] text-slate-500 flex items-center justify-between">
+                            <span>Status Event: <strong class="text-amber-600">RabbitMQ PUBLISHED</strong></span>
+                            <a href="http://localhost:15672/#/queues" target="_blank" class="text-cyan-600 hover:underline font-semibold">Cek Broker &rarr;</a>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Modal Controls
+        function openAuthModal(tab = 'login') {
+            document.getElementById('authModal').classList.remove('hidden');
+            switchAuthTab(tab);
+        }
+
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.add('hidden');
+        }
+
+        function switchAuthTab(tab) {
+            const loginTab = document.getElementById('modalTabLogin');
+            const regTab = document.getElementById('modalTabRegister');
+            const loginForm = document.getElementById('modalLoginForm');
+            const regForm = document.getElementById('modalRegisterForm');
+            const title = document.getElementById('modalAuthTitle');
+
+            if (tab === 'login') {
+                loginTab.className = 'flex-1 py-3 text-cyan-700 border-b-2 border-cyan-600 font-bold bg-white transition';
+                regTab.className = 'flex-1 py-3 text-slate-500 hover:text-cyan-600 transition';
+                loginForm.classList.remove('hidden');
+                regForm.classList.add('hidden');
+                title.innerText = 'Masuk ke ShopeeCyan';
+            } else {
+                loginTab.className = 'flex-1 py-3 text-slate-500 hover:text-cyan-600 transition';
+                regTab.className = 'flex-1 py-3 text-teal-700 border-b-2 border-teal-600 font-bold bg-white transition';
+                loginForm.classList.add('hidden');
+                regForm.classList.remove('hidden');
+                title.innerText = 'Daftar Akun Baru';
+            }
+        }
+
+        function openOrderDrawer() {
+            if (!authToken) {
+                showToast("Silakan Log In untuk melihat pesanan Anda!", true);
+                openAuthModal('login');
+                return;
+            }
+            document.getElementById('orderDrawer').classList.remove('hidden');
+            fetchOrders();
+        }
+
+        function closeOrderDrawer() {
+            document.getElementById('orderDrawer').classList.add('hidden');
+        }
+
+        // Auth Submissions
+        async function submitLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('inputLoginEmail').value;
+            const password = document.getElementById('inputLoginPassword').value;
+
+            try {
+                const res = await fetch(`${API_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Login gagal');
+
+                authToken = data.access_token;
+                currentUser = data.user;
+
+                localStorage.setItem('micro_jwt', authToken);
+                localStorage.setItem('micro_user', JSON.stringify(currentUser));
+
+                closeAuthModal();
+                updateAuthUI();
+                fetchOrders();
+                showToast(`Selamat datang kembali, ${currentUser.name}!`);
+
+            } catch (err) {
+                showToast(err.message, true);
+            }
+        }
+
+        async function submitRegister(e) {
+            e.preventDefault();
+            const name = document.getElementById('inputRegName').value;
+            const email = document.getElementById('inputRegEmail').value;
+            const password = document.getElementById('inputRegPassword').value;
+
+            try {
+                const res = await fetch(`${API_URL}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Pendaftaran gagal');
+
+                showToast("Pendaftaran berhasil! Mengalihkan ke login...");
+                document.getElementById('inputLoginEmail').value = email;
+                document.getElementById('inputLoginPassword').value = password;
+                switchAuthTab('login');
+
+            } catch (err) {
+                showToast(err.message, true);
+            }
+        }
+
+        function updateAuthUI() {
+            const guestButtons = document.getElementById('guestButtons');
+            const userProfile = document.getElementById('userProfileBadge');
+            const userNameText = document.getElementById('headerUserName');
+            const userAvatarText = document.getElementById('userAvatarText');
+
+            if (authToken && currentUser) {
+                guestButtons.classList.add('hidden');
+                userProfile.classList.remove('hidden');
+                userNameText.innerText = currentUser.name || currentUser.email;
+                userAvatarText.innerText = (currentUser.name || 'U').charAt(0).toUpperCase();
+            } else {
+                guestButtons.classList.remove('hidden');
+                userProfile.classList.add('hidden');
+                document.getElementById('cartBadgeCount').innerText = '0';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('micro_jwt');
+            localStorage.removeItem('micro_user');
+            authToken = null;
+            currentUser = null;
+            updateAuthUI();
+            closeOrderDrawer();
+            showToast("Anda telah keluar dari akun.");
+        }
+    </script>
+</body>
+</html>
