@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'traefik-gateway'
+    static_configs:
+      - targets: ['gateway:8080']
+
+  - job_name: 'auth-service'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['auth-service:8000']
+
+  - job_name: 'order-service'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['order-service:8000']
+
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification-service:8003']

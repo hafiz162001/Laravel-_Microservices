@@ -6,17 +6,67 @@ use App\Helpers\JwtHelper;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    private function incrementMetric(string $key): void
+    {
+        try {
+            Cache::increment($key);
+        } catch (\Throwable) {
+            // Jangan gagalkan request utama jika cache/metrics sementara tidak terjangkau
+        }
+    }
+
+    private function getMetric(string $key): int
+    {
+        try {
+            return (int) Cache::get($key, 0);
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
     public function health(): JsonResponse
     {
         return response()->json([
             'status' => 'healthy',
             'service' => 'auth-service',
+            'cache_driver' => config('cache.default'),
             'timestamp' => now()->toIso8601String()
         ]);
+    }
+
+    public function metrics(): Response
+    {
+        $registrations = $this->getMetric('metrics:auth_registrations_total');
+        $logins = $this->getMetric('metrics:auth_logins_total');
+        $usersCount = 0;
+        try {
+            $usersCount = User::count();
+        } catch (\Throwable) {
+        }
+
+        $body = implode("\n", [
+            '# HELP auth_service_up Auth service availability',
+            '# TYPE auth_service_up gauge',
+            'auth_service_up 1',
+            '# HELP auth_registrations_total Total user registrations',
+            '# TYPE auth_registrations_total counter',
+            "auth_registrations_total {$registrations}",
+            '# HELP auth_logins_total Total successful logins',
+            '# TYPE auth_logins_total counter',
+            "auth_logins_total {$logins}",
+            '# HELP auth_users_total Total registered users in PostgreSQL',
+            '# TYPE auth_users_total gauge',
+            "auth_users_total {$usersCount}",
+            ''
+        ]);
+
+        return response($body, 200, ['Content-Type' => 'text/plain; version=0.0.4; charset=utf-8']);
     }
 
     public function register(Request $request): JsonResponse
@@ -32,6 +82,8 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
         ]);
+
+        $this->incrementMetric('metrics:auth_registrations_total');
 
         return response()->json([
             'message' => 'User registered successfully',
@@ -64,6 +116,8 @@ class AuthController extends Controller
             'name' => $user->name,
             'role' => 'customer'
         ], $secret);
+
+        $this->incrementMetric('metrics:auth_logins_total');
 
         return response()->json([
             'message' => 'Login successful',
@@ -98,4 +152,3 @@ class AuthController extends Controller
         ]);
     }
 }
-

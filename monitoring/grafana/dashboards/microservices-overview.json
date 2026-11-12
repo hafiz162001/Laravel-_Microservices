@@ -1,0 +1,71 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [{ "expr": "auth_service_up", "refId": "A" }],
+      "title": "Auth Service (Laravel)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "targets": [{ "expr": "order_service_up", "refId": "A" }],
+      "title": "Order Service (Laravel)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "targets": [{ "expr": "notification_rabbitmq_connected", "refId": "A" }],
+      "title": "Notification Service (Go + RabbitMQ)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "targets": [{ "expr": "notifications_processed_total", "refId": "A" }],
+      "title": "Notifications Processed",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "targets": [
+        { "expr": "orders_created_total", "legendFormat": "Orders Created", "refId": "A" },
+        { "expr": "orders_cache_hits_total", "legendFormat": "Redis Cache Hits", "refId": "B" },
+        { "expr": "orders_cache_misses_total", "legendFormat": "Redis Cache Misses", "refId": "C" }
+      ],
+      "title": "Order Service & Redis Cache Activity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "targets": [
+        { "expr": "sum(rate(traefik_entrypoint_requests_total[1m])) by (code)", "legendFormat": "HTTP {{code}}", "refId": "A" }
+      ],
+      "title": "Traefik API Gateway Request Rate",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["microservices", "laravel", "go", "redis"],
+  "time": { "from": "now-15m", "to": "now" },
+  "title": "Laravel + Go Microservices Overview",
+  "uid": "micro-overview-v1",
+  "version": 1
+}

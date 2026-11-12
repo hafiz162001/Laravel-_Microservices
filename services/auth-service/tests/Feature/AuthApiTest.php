@@ -21,6 +21,14 @@ class AuthApiTest extends TestCase
                  ->assertHeader('X-Correlation-ID');
     }
 
+    public function test_metrics_endpoint_returns_prometheus_format(): void
+    {
+        $response = $this->get('/api/metrics');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('auth_service_up 1', $response->getContent());
+    }
+
     public function test_user_can_register_login_and_access_profile_with_jwt(): void
     {
         // 1. Register user

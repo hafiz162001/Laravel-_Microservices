@@ -6,3 +6,4 @@ tests/
 storage/*.key
 storage/logs/*.log
 database/*.sqlite
+

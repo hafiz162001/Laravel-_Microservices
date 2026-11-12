@@ -1,14 +1,10 @@
 FROM php:8.4-cli-alpine
 
-# Install system dependencies and PHP extensions
-RUN apk add --no-cache \
-    postgresql-dev \
-    libzip-dev \
-    zip \
-    unzip \
-    git \
-    linux-headers \
-    && docker-php-ext-install pdo pdo_pgsql sockets pcntl bcmath
+# Install system dependencies and PHP extensions (including phpredis)
+COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
+
+RUN apk add --no-cache git zip unzip \
+    && install-php-extensions pdo_pgsql sockets pcntl bcmath redis
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

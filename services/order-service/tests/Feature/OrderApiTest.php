@@ -35,6 +35,14 @@ class OrderApiTest extends TestCase
                  ->assertHeader('X-Correlation-ID');
     }
 
+    public function test_metrics_endpoint_returns_prometheus_format(): void
+    {
+        $response = $this->get('/api/metrics');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('order_service_up 1', $response->getContent());
+    }
+
     public function test_orders_endpoint_rejects_unauthenticated_requests(): void
     {
         $response = $this->getJson('/api');
@@ -43,7 +51,7 @@ class OrderApiTest extends TestCase
                  ->assertJson(['error' => 'Unauthorized']);
     }
 
-    public function test_authenticated_user_can_list_orders(): void
+    public function test_authenticated_user_can_list_orders_with_cache_miss_then_hit(): void
     {
         $secret = env('JWT_SECRET', 'super-secret-jwt-key-for-microservices-demo-2026');
         $token = $this->createTestJwt([
@@ -53,13 +61,23 @@ class OrderApiTest extends TestCase
             'role' => 'customer',
         ], $secret);
 
-        $response = $this->withHeaders([
+        // First call -> Cache MISS
+        $first = $this->withHeaders([
             'Authorization' => "Bearer {$token}",
         ])->getJson('/api');
 
-        $response->assertStatus(200)
-                 ->assertJsonPath('service', 'order-service')
-                 ->assertJsonPath('authenticated_user.email', 'test@example.com')
-                 ->assertJsonStructure(['orders']);
+        $first->assertStatus(200)
+              ->assertHeader('X-Cache', 'MISS')
+              ->assertJsonPath('cache_status', 'MISS')
+              ->assertJsonPath('service', 'order-service');
+
+        // Second call -> Cache HIT
+        $second = $this->withHeaders([
+            'Authorization' => "Bearer {$token}",
+        ])->getJson('/api');
+
+        $second->assertStatus(200)
+               ->assertHeader('X-Cache', 'HIT')
+               ->assertJsonPath('cache_status', 'HIT');
     }
 }

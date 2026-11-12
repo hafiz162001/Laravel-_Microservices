@@ -2,24 +2,50 @@ name: laravel-microservices
 
 services:
   # ==========================================
-  # 1. API GATEWAY (Reverse Proxy)
+  # 1. ENTERPRISE API GATEWAY (Traefik v3)
   # ==========================================
   gateway:
-    image: nginx:alpine
+    image: traefik:v3.2
     container_name: micro_gateway
     ports:
       - "80:80"
+      - "8080:8080" # Traefik Dashboard & Metrics
     volumes:
-      - ./gateway/default.conf:/etc/nginx/nginx.conf:ro
-      - ./gateway/html:/usr/share/nginx/html:ro
+      - ./gateway/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./gateway/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     depends_on:
+      - frontend
       - auth-service
       - order-service
+      - notification-service
     networks:
       - micro-network
 
   # ==========================================
-  # 2. MESSAGE BROKER (RabbitMQ)
+  # 2. FRONTEND STATIC SERVER (Nginx)
+  # ==========================================
+  frontend:
+    image: nginx:alpine
+    container_name: micro_frontend
+    volumes:
+      - ./gateway/default.conf:/etc/nginx/nginx.conf:ro
+      - ./gateway/html:/usr/share/nginx/html:ro
+    networks:
+      - micro-network
+
+  # ==========================================
+  # 3. REDIS (Caching & Rate Limiting)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: micro_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - micro-network
+
+  # ==========================================
+  # 4. MESSAGE BROKER (RabbitMQ)
   # ==========================================
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -31,7 +57,7 @@ services:
       - micro-network
 
   # ==========================================
-  # 3. AUTH SERVICE (Laravel)
+  # 5. AUTH SERVICE (Laravel + PostgreSQL)
   # ==========================================
   auth-db:
     image: postgres:16-alpine
@@ -61,15 +87,20 @@ services:
       DB_DATABASE: auth_db
       DB_USERNAME: laravel
       DB_PASSWORD: secretpassword
+      CACHE_STORE: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       JWT_SECRET: "super-secret-jwt-key-for-microservices-demo-2026"
     depends_on:
       - auth-db
+      - redis
       - rabbitmq
     networks:
       - micro-network
 
   # ==========================================
-  # 4. ORDER SERVICE (Laravel)
+  # 6. ORDER SERVICE (Laravel + PostgreSQL)
   # ==========================================
   order-db:
     image: postgres:16-alpine
@@ -99,6 +130,10 @@ services:
       DB_DATABASE: order_db
       DB_USERNAME: laravel
       DB_PASSWORD: secretpassword
+      CACHE_STORE: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       JWT_SECRET: "super-secret-jwt-key-for-microservices-demo-2026"
       AUTH_SERVICE_URL: "http://auth-service:8000"
       RABBITMQ_HOST: rabbitmq
@@ -107,7 +142,57 @@ services:
       RABBITMQ_PASSWORD: guest
     depends_on:
       - order-db
+      - redis
       - rabbitmq
+    networks:
+      - micro-network
+
+  # ==========================================
+  # 7. NOTIFICATION SERVICE (Go Polyglot Worker)
+  # ==========================================
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: micro_notification_service
+    environment:
+      PORT: 8003
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      - rabbitmq
+    networks:
+      - micro-network
+
+  # ==========================================
+  # 8. MONITORING (Prometheus & Grafana)
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: micro_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - micro-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: micro_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
     networks:
       - micro-network
 
@@ -118,4 +203,3 @@ networks:
 volumes:
   auth_db_data:
   order_db_data:
-

@@ -1,80 +1,84 @@
-# Laravel Microservices (Greenfield)
+# Enterprise Polyglot Microservices (Laravel + Go)
 
-Proyek eksperimen arsitektur microservices berbasis **Laravel 11/12**, **Nginx (API Gateway)**, **PostgreSQL (Database per Service)**, dan **RabbitMQ (Message Broker)**.
+Proyek arsitektur microservices modern berstandar industri dengan **Traefik API Gateway**, **Laravel 13** (Auth & Order), **Go (Golang)** (Notification Worker), **Redis** (Caching & Rate Limiting), **PostgreSQL**, **RabbitMQ**, **Prometheus + Grafana** (Observability), **Kubernetes (`k8s/`)**, dan **CI/CD GitHub Actions**.
 
 ---
 
 ## 🏛️ Arsitektur Sistem
 
 ```
-                                +-------------------+
-                                |   Client / Postman|
-                                +---------+---------+
-                                          |
-                                    (Port 80)
-                                          v
-                                +---------+---------+
-                                |    API Gateway    |
-                                |     (Nginx)       |
-                                +----+---------+----+
-                                     |         |
-                  /api/auth/*        |         |   /api/orders/*
-            +------------------------+         +-----------------------+
-            |                                                          |
-            v                                                          v
-  +---------+---------+                                      +---------+---------+
-  |    auth-service   |                                      |   order-service   |
-  |  (Laravel API)    |                                      |  (Laravel API)    |
-  +---------+---------+                                      +----+---------+----+
-            |                                                     |         |
-            v                                                     v         v
-  +---------+---------+                               +-----------+-+     +-+-------------+
-  |    auth_db        |                               |   order_db  |     |   RabbitMQ    |
-  |  (PostgreSQL)     |                               | (PostgreSQL)|     | (Event Broker)|
-  +-------------------+                               +-------------+     +---------------+
+                        +----------------------+
+                        |   Client / Browser   |
+                        +----------+-----------+
+                                   | (Port 80)
+                                   v
+                        +----------+-----------+
+                        |   Traefik Gateway    | <--- Dashboard: :8080
+                        | (Routing, RateLimit) |
+                        +----+------+------+---+
+                             |      |      |
+        +--------------------+      |      +--------------------+
+        | /api/auth/*               | /api/orders/*             | /api/notifications/*
+        v                           v                           v
++-------+--------+          +-------+--------+          +-------+--------+
+|  auth-service  |          |  order-service |          | notification-  |
+|   (Laravel)    |          |   (Laravel)    |          | service (Go)   |
++---+--------+---+          +---+----+---+---+          +-------+--------+
+    |        |                  |    |   |                      ^
+    v        |                  |    |   +---(Publish Event)----+
++---+---+    +-------->+--------+    |        RabbitMQ (:5672 / UI :15672)
+|auth_db|              v             |
+| (PG)  |          +---+---+         v
++-------+          | Redis |     +---+----+
+                   |(:6379)|     |order_db|
+                   +-------+     |  (PG)  |
+                                 +--------+
+
+   [ Monitoring Stack: Prometheus (:9090) ---> Grafana Dashboard (:3000) ]
 ```
 
 ---
 
-## 🚀 Panduan Menjalankan
+## 🚀 Panduan Menjalankan (Docker Compose)
 
-### 1. Menjalankan Docker Desktop
-Pastikan aplikasi **Docker Desktop** di Windows Anda sudah dalam kondisi running.
+Pastikan **Docker Desktop** berjalan, lalu di folder `c:\Dishub\Experimen\laravel-microservices` jalankan:
 
-### 2. Jalankan Seluruh Microservice
-Buka terminal di root direktori ini (`c:\Dishub\Experimen`) dan jalankan:
-Buka terminal di root direktori proyek ini (`c:\Dishub\Experimen\laravel-microservices`) dan jalankan:
 ```bash
 docker compose up -d --build
 ```
 
-Container yang akan berjalan:
-* `micro_gateway` (Port 80)
-* `micro_auth_service` (Internal port 8000)
-* `micro_auth_db` (PostgreSQL - Port 5432)
-* `micro_order_service` (Internal port 8000)
-* `micro_order_db` (PostgreSQL - Port 5432)
-* `micro_rabbitmq` (AMQP 5672, Dashboard Web 15672)
+### Akses Dashboard & Layanan
+
+| Layanan | URL | Keterangan |
+| :--- | :--- | :--- |
+| **API Gateway / Frontend** | `http://localhost` | Pintu masuk utama seluruh API |
+| **Traefik Dashboard** | `http://localhost:8080` | Monitoring routing & rate limiting gateway |
+| **Grafana Dashboard** | `http://localhost:3000` | Visualisasi metrik real-time (login: `admin` / `admin`) |
+| **Prometheus** | `http://localhost:9090` | Pengumpul metrik & status scraping |
+| **RabbitMQ Management** | `http://localhost:15672` | Pantau antrean pesan (login: `guest` / `guest`) |
 
 ---
 
-## 📡 Daftar Endpoint API (Lewat Gateway Port 80)
+## 📡 Daftar Endpoint API (Melalui Traefik Gateway `:80`)
 
-| Method | Endpoint | Service Tujuan | Keterangan |
+| Method | Endpoint | Service | Fitur Enterprise |
 | :--- | :--- | :--- | :--- |
-| `GET` | `http://localhost/healthz` | **Gateway** | Cek status gateway |
-| `POST` | `http://localhost/api/auth/register` | **auth-service** | Pendaftaran user baru |
-| `POST` | `http://localhost/api/auth/login` | **auth-service** | Login & dapatkan token JWT |
-| `GET` | `http://localhost/api/auth/profile` | **auth-service** | Cek profil user login |
-| `GET` | `http://localhost/api/orders` | **order-service** | Daftar pesanan user |
-| `POST` | `http://localhost/api/orders` | **order-service** | Buat pesanan baru (Triggers Event) |
+| `GET` | `/healthz` | **Gateway** | Cek status Traefik + Nginx |
+| `POST` | `/api/auth/register` | **auth-service (Laravel)** | Register ke PostgreSQL + Rate Limiting |
+| `POST` | `/api/auth/login` | **auth-service (Laravel)** | Login & buat token Stateless JWT |
+| `GET` | `/api/auth/profile` | **auth-service (Laravel)** | Decode JWT profil user |
+| `GET` | `/api/orders/` | **order-service (Laravel)** | Verifikasi JWT stateless + **Redis Caching (`X-Cache: MISS/HIT`)** |
+| `POST` | `/api/orders/` | **order-service (Laravel)** | Buat order + invalidasi cache Redis + **Publish ke RabbitMQ** |
+| `GET` | `/api/notifications/` | **notification-service (Go)** | Daftar notifikasi yang dikonsumsi asinkron dari RabbitMQ |
+| `GET` | `/api/*/metrics` | **Semua Service** | Endpoint metrik format Prometheus |
 
 ---
 
-## 🔐 Konsep Autentikasi Stateless (JWT)
+## ☸️ Kubernetes (`k8s/`)
 
-1. `auth-service` membuat token JWT saat user berhasil login.
-2. Token JWT dikirim oleh Client di header: `Authorization: Bearer <token>`.
-3. `order-service` memiliki middleware yang memverifikasi signature JWT menggunakan shared secret `JWT_SECRET`.
-4. **Hasilnya**: `order-service` mengetahui siapa `user_id` yang sedang request **tanpa perlu memanggil database `auth_db` atau API `auth-service`**.
-
+Manifest Kubernetes lengkap tersedia di folder [`k8s/`](k8s/) meliputi:
+* `namespace.yaml`, `configmap.yaml` (ConfigMap & Secret)
+* `infrastructure.yaml` (PostgreSQL, Redis, RabbitMQ)
+* `auth-service.yaml` & `order-service.yaml` (Deployment, Liveness/Readiness Probe, **HorizontalPodAutoscaler**)
+* `notification-service.yaml` & `ingress.yaml`
+* Tervalidasi otomatis di GitHub Actions menggunakan `kubeconform`.

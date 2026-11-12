@@ -1,0 +1,82 @@
+http:
+  middlewares:
+    gateway-ratelimit:
+      rateLimit:
+        average: 100
+        burst: 50
+
+    auth-rewrite:
+      replacePathRegex:
+        regex: "^/api/auth/?(.*)"
+        replacement: "/api/$1"
+
+    order-rewrite:
+      replacePathRegex:
+        regex: "^/api/orders/?(.*)"
+        replacement: "/api/$1"
+
+    notif-root-rewrite:
+      replacePathRegex:
+        regex: "^/api/notifications/?$"
+        replacement: "/notifications"
+
+    notif-sub-rewrite:
+      replacePathRegex:
+        regex: "^/api/notifications/(.*)"
+        replacement: "/$1"
+
+  routers:
+    auth-router:
+      rule: "PathPrefix(`/api/auth`)"
+      entryPoints: ["web"]
+      middlewares: ["gateway-ratelimit", "auth-rewrite"]
+      service: auth-service
+      priority: 20
+
+    order-router:
+      rule: "PathPrefix(`/api/orders`)"
+      entryPoints: ["web"]
+      middlewares: ["gateway-ratelimit", "order-rewrite"]
+      service: order-service
+      priority: 20
+
+    notification-root-router:
+      rule: "Path(`/api/notifications`) || Path(`/api/notifications/`)"
+      entryPoints: ["web"]
+      middlewares: ["gateway-ratelimit", "notif-root-rewrite"]
+      service: notification-service
+      priority: 30
+
+    notification-sub-router:
+      rule: "PathPrefix(`/api/notifications/`)"
+      entryPoints: ["web"]
+      middlewares: ["gateway-ratelimit", "notif-sub-rewrite"]
+      service: notification-service
+      priority: 20
+
+    frontend-router:
+      rule: "PathPrefix(`/`)"
+      entryPoints: ["web"]
+      service: frontend-service
+      priority: 1
+
+  services:
+    auth-service:
+      loadBalancer:
+        servers:
+          - url: "http://auth-service:8000"
+
+    order-service:
+      loadBalancer:
+        servers:
+          - url: "http://order-service:8000"
+
+    notification-service:
+      loadBalancer:
+        servers:
+          - url: "http://notification-service:8003"
+
+    frontend-service:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:80"
