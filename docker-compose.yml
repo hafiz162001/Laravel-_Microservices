@@ -1,3 +1,5 @@
+name: laravel-microservices
+
 services:
   # ==========================================
   # 1. API GATEWAY (Reverse Proxy)
