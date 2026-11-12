@@ -28,3 +28,4 @@ stringData:
   DB_PASSWORD: "secretpassword"
   RABBITMQ_USER: "guest"
   RABBITMQ_PASSWORD: "guest"
+

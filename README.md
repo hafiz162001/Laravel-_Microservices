@@ -1,6 +1,6 @@
 # Enterprise Polyglot Microservices (Laravel + Go)
 
-Proyek arsitektur microservices modern berstandar industri dengan **Traefik API Gateway**, **Laravel 13** (Auth & Order), **Go (Golang)** (Notification Worker), **Redis** (Caching & Rate Limiting), **PostgreSQL**, **RabbitMQ**, **Prometheus + Grafana** (Observability), **Kubernetes (`k8s/`)**, dan **CI/CD GitHub Actions**.
+Proyek arsitektur microservices modern berstandar industri dengan **Traefik API Gateway**, **Laravel 13** (Auth & Order), **Go (Golang)** (gRPC Inventory Server & RabbitMQ Notification Worker), **gRPC / Protocol Buffers**, **Redis** (Caching & Rate Limiting), **PostgreSQL**, **RabbitMQ**, **Prometheus + Grafana** (Observability), **Kubernetes (`k8s/`)**, dan **CI/CD GitHub Actions**.
 
 ---
 
@@ -67,10 +67,12 @@ docker compose up -d --build
 | `POST` | `/api/auth/register` | **auth-service (Laravel)** | Register ke PostgreSQL + Rate Limiting |
 | `POST` | `/api/auth/login` | **auth-service (Laravel)** | Login & buat token Stateless JWT |
 | `GET` | `/api/auth/profile` | **auth-service (Laravel)** | Decode JWT profil user |
+| `GET` | `/api/orders/stock?item=MacBook%20Pro%20M3` | **order-service $\rightarrow$ inventory-service** | Cek stok secara sinkron melalui **gRPC (HTTP/2 + Protobuf)** |
 | `GET` | `/api/orders/` | **order-service (Laravel)** | Verifikasi JWT stateless + **Redis Caching (`X-Cache: MISS/HIT`)** |
-| `POST` | `/api/orders/` | **order-service (Laravel)** | Buat order + invalidasi cache Redis + **Publish ke RabbitMQ** |
+| `POST` | `/api/orders/` | **order-service $\rightarrow$ gRPC + RabbitMQ** | Reservasi stok via **gRPC** + invalidasi cache Redis + **Publish ke RabbitMQ** |
 | `GET` | `/api/notifications/` | **notification-service (Go)** | Daftar notifikasi yang dikonsumsi asinkron dari RabbitMQ |
 | `GET` | `/api/*/metrics` | **Semua Service** | Endpoint metrik format Prometheus |
+| `gRPC` | `localhost:50051` | **inventory-service (Go)** | Native gRPC Server (`proto/inventory.proto`, dengan Server Reflection) |
 
 ---
 

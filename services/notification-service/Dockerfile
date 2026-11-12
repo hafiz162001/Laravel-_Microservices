@@ -17,3 +17,4 @@ COPY --from=builder /app/notification-service .
 EXPOSE 8003
 
 CMD ["./notification-service"]
+

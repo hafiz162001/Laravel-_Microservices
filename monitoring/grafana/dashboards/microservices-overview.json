@@ -8,7 +8,7 @@
   "panels": [
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 0 },
       "id": 1,
       "targets": [{ "expr": "auth_service_up", "refId": "A" }],
       "title": "Auth Service (Laravel)",
@@ -16,7 +16,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 0 },
       "id": 2,
       "targets": [{ "expr": "order_service_up", "refId": "A" }],
       "title": "Order Service (Laravel)",
@@ -24,48 +24,59 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 0 },
       "id": 3,
-      "targets": [{ "expr": "notification_rabbitmq_connected", "refId": "A" }],
-      "title": "Notification Service (Go + RabbitMQ)",
+      "targets": [{ "expr": "inventory_service_up", "refId": "A" }],
+      "title": "Inventory gRPC (Go)",
       "type": "stat"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 0 },
       "id": 4,
-      "targets": [{ "expr": "notifications_processed_total", "refId": "A" }],
-      "title": "Notifications Processed",
+      "targets": [{ "expr": "notification_rabbitmq_connected", "refId": "A" }],
+      "title": "Notification (Go + RabbitMQ)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "id": 5,
+      "targets": [{ "expr": "inventory_grpc_requests_total", "refId": "A" }],
+      "title": "gRPC Calls Total",
       "type": "stat"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
-      "id": 5,
+      "id": 6,
       "targets": [
         { "expr": "orders_created_total", "legendFormat": "Orders Created", "refId": "A" },
         { "expr": "orders_cache_hits_total", "legendFormat": "Redis Cache Hits", "refId": "B" },
-        { "expr": "orders_cache_misses_total", "legendFormat": "Redis Cache Misses", "refId": "C" }
+        { "expr": "orders_cache_misses_total", "legendFormat": "Redis Cache Misses", "refId": "C" },
+        { "expr": "notifications_processed_total", "legendFormat": "Notifications Sent", "refId": "D" }
       ],
-      "title": "Order Service & Redis Cache Activity",
+      "title": "Order, Redis Cache & RabbitMQ Activity",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-      "id": 6,
+      "id": 7,
       "targets": [
-        { "expr": "sum(rate(traefik_entrypoint_requests_total[1m])) by (code)", "legendFormat": "HTTP {{code}}", "refId": "A" }
+        { "expr": "inventory_grpc_requests_total", "legendFormat": "Total gRPC Calls", "refId": "A" },
+        { "expr": "inventory_stock_reservations_total{status=\"success\"}", "legendFormat": "Stock Reserved OK", "refId": "B" },
+        { "expr": "inventory_stock_reservations_total{status=\"failed\"}", "legendFormat": "Out-of-Stock Rejected", "refId": "C" }
       ],
-      "title": "Traefik API Gateway Request Rate",
+      "title": "gRPC Inventory Service Metrics",
       "type": "timeseries"
     }
   ],
   "refresh": "5s",
   "schemaVersion": 39,
-  "tags": ["microservices", "laravel", "go", "redis"],
+  "tags": ["microservices", "laravel", "go", "grpc", "redis"],
   "time": { "from": "now-15m", "to": "now" },
-  "title": "Laravel + Go Microservices Overview",
+  "title": "Laravel + Go + gRPC Microservices Overview",
   "uid": "micro-overview-v1",
-  "version": 1
+  "version": 2
 }

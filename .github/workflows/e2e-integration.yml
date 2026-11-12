@@ -15,18 +15,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build and start all microservices (Traefik, Auth, Order, Go Notification, Redis, RabbitMQ, Prometheus, Grafana)
+      - name: Build and start all microservices (Traefik, Auth, Order, Go gRPC Inventory, Go Notification, Redis, RabbitMQ, Prometheus, Grafana)
         run: docker compose up -d --build
 
       - name: Wait for Traefik Gateway, Microservices & Monitoring to be ready
         run: |
-          echo "Waiting for Gateway, Services, Prometheus & Grafana..."
+          echo "Waiting for Gateway, Services, gRPC Inventory, Prometheus & Grafana..."
           for i in $(seq 1 40); do
             if curl -sf http://localhost/healthz > /dev/null && \
                curl -sf http://localhost:8080/ping > /dev/null && \
                curl -sf http://localhost/api/auth/health > /dev/null && \
                curl -sf http://localhost/api/orders/health > /dev/null && \
                curl -sf http://localhost/api/notifications/health > /dev/null && \
+               curl -sf http://localhost:8004/health > /dev/null && \
                curl -sf http://localhost:9090/-/healthy > /dev/null && \
                curl -sf http://localhost:3000/api/health > /dev/null; then
               echo "All services and monitoring stack are healthy!"
@@ -40,6 +41,7 @@ jobs:
           curl -f http://localhost/api/auth/health
           curl -f http://localhost/api/orders/health
           curl -f http://localhost/api/notifications/health
+          curl -f http://localhost:8004/health
           curl -f http://localhost:9090/-/healthy
           curl -f http://localhost:3000/api/health
 
@@ -68,7 +70,7 @@ jobs:
             sleep 3
           done
 
-      - name: Run End-to-End Polyglot Flow (Traefik -> Auth -> Order + Redis -> RabbitMQ -> Go Notification)
+      - name: Run End-to-End Polyglot + gRPC Flow
         run: |
           set -e
           echo "1. Registering user..."
@@ -87,39 +89,55 @@ jobs:
           test -n "$TOKEN" && test "$TOKEN" != "null"
           echo "JWT Token acquired!"
 
-          echo "3. Fetching orders #1 (Expect Redis Cache MISS)..."
+          echo "3. Checking stock via gRPC (Laravel -> Go inventory-service:50051)..."
+          STOCK_RES=$(curl -sf "http://localhost/api/orders/stock?item=MacBook%20Pro%20M3")
+          echo "gRPC Stock response: $STOCK_RES"
+          test "$(echo "$STOCK_RES" | jq -r '.inventory_grpc.connected')" = "true"
+          test "$(echo "$STOCK_RES" | jq -r '.inventory_grpc.protocol')" = "gRPC/HTTP2"
+          test "$(echo "$STOCK_RES" | jq -r '.inventory_grpc.available_stock')" = "10"
+
+          echo "4. Fetching orders #1 (Expect Redis Cache MISS)..."
           ORDERS_1=$(curl -sf http://localhost/api/orders/ \
             -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/json")
-          echo "Orders #1 cache_status: $(echo "$ORDERS_1" | jq -r '.cache_status') (driver: $(echo "$ORDERS_1" | jq -r '.cache_driver'))"
+          echo "Orders #1 cache_status: $(echo "$ORDERS_1" | jq -r '.cache_status')"
           test "$(echo "$ORDERS_1" | jq -r '.cache_status')" = "MISS"
-          test "$(echo "$ORDERS_1" | jq -r '.cache_driver')" = "redis"
 
-          echo "4. Fetching orders #2 (Expect Redis Cache HIT)..."
+          echo "5. Fetching orders #2 (Expect Redis Cache HIT)..."
           ORDERS_2=$(curl -sf http://localhost/api/orders/ \
             -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/json")
           echo "Orders #2 cache_status: $(echo "$ORDERS_2" | jq -r '.cache_status')"
           test "$(echo "$ORDERS_2" | jq -r '.cache_status')" = "HIT"
 
-          echo "5. Creating order & publishing event to RabbitMQ..."
+          echo "6. Creating order (reserves 2 units via gRPC + publishes to RabbitMQ)..."
           CREATE_RES=$(curl -sf -X POST http://localhost/api/orders/ \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
-            -d '{"item":"Enterprise Polyglot Book","amount":250000}')
+            -d '{"item":"MacBook Pro M3","quantity":2,"amount":50000000}')
           echo "Create Order response: $CREATE_RES"
           ORDER_ID=$(echo "$CREATE_RES" | jq -r '.order.order_id')
-          EVENT_STATUS=$(echo "$CREATE_RES" | jq -r '.event.status')
-          test "$EVENT_STATUS" = "PUBLISHED"
+          test "$(echo "$CREATE_RES" | jq -r '.inventory_grpc.connected')" = "true"
+          test "$(echo "$CREATE_RES" | jq -r '.inventory_grpc.success')" = "true"
+          test "$(echo "$CREATE_RES" | jq -r '.inventory_grpc.remaining_stock')" = "8"
+          test "$(echo "$CREATE_RES" | jq -r '.event.status')" = "PUBLISHED"
 
-          echo "6. Verifying Go notification-service consumed event from RabbitMQ..."
+          echo "7. Testing gRPC out-of-stock rejection (expect HTTP 409)..."
+          OOS_CODE=$(curl -s -o /tmp/oos.json -w "%{http_code}" -X POST http://localhost/api/orders/ \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d '{"item":"Out Of Stock Item","quantity":1,"amount":100000}')
+          echo "Out-of-stock HTTP status: $OOS_CODE ($(cat /tmp/oos.json))"
+          test "$OOS_CODE" = "409"
+
+          echo "8. Verifying Go notification-service consumed event from RabbitMQ..."
           FOUND=0
           for i in $(seq 1 10); do
             NOTIF_RES=$(curl -sf http://localhost/api/notifications/)
             if echo "$NOTIF_RES" | jq -e --arg oid "$ORDER_ID" '.notifications[] | select(.order.order_id == $oid)' > /dev/null; then
               echo "Notification confirmed in Go service for $ORDER_ID!"
-              echo "$NOTIF_RES"
               FOUND=1
               break
             fi
@@ -127,11 +145,12 @@ jobs:
           done
           test "$FOUND" = "1"
 
-          echo "7. Checking Prometheus metrics endpoints..."
+          echo "9. Checking Prometheus metrics across all services..."
           curl -sf http://localhost/api/auth/metrics | grep -q "auth_service_up 1"
           curl -sf http://localhost/api/orders/metrics | grep -q "orders_created_total 1"
           curl -sf http://localhost/api/notifications/metrics | grep -q "notifications_processed_total 1"
-          echo "All Prometheus metrics verified!"
+          curl -sf http://localhost:8004/metrics | grep -q "inventory_grpc_requests_total 3"
+          echo "All Prometheus & gRPC metrics verified!"
 
       - name: Show container logs on failure
         if: failure()

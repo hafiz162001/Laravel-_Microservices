@@ -27,3 +27,4 @@ jobs:
 
       - name: Validate all manifests in k8s/
         run: kubeconform -summary -strict k8s/
+

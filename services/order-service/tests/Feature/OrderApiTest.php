@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Grpc\Inventory\ReserveStockRequest;
+use App\Services\GrpcInventoryClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use Tests\TestCase;
 
 class OrderApiTest extends TestCase
@@ -61,7 +64,6 @@ class OrderApiTest extends TestCase
             'role' => 'customer',
         ], $secret);
 
-        // First call -> Cache MISS
         $first = $this->withHeaders([
             'Authorization' => "Bearer {$token}",
         ])->getJson('/api');
@@ -71,7 +73,6 @@ class OrderApiTest extends TestCase
               ->assertJsonPath('cache_status', 'MISS')
               ->assertJsonPath('service', 'order-service');
 
-        // Second call -> Cache HIT
         $second = $this->withHeaders([
             'Authorization' => "Bearer {$token}",
         ])->getJson('/api');
@@ -79,5 +80,57 @@ class OrderApiTest extends TestCase
         $second->assertStatus(200)
                ->assertHeader('X-Cache', 'HIT')
                ->assertJsonPath('cache_status', 'HIT');
+    }
+
+    public function test_protobuf_binary_serialization_works(): void
+    {
+        $req = (new ReserveStockRequest())
+            ->setOrderId('ORD-PROTO1')
+            ->setItem('MacBook Pro M3')
+            ->setQuantity(2);
+
+        $binary = $req->serializeToString();
+        $decoded = new ReserveStockRequest();
+        $decoded->mergeFromString($binary);
+
+        $this->assertSame('ORD-PROTO1', $decoded->getOrderId());
+        $this->assertSame('MacBook Pro M3', $decoded->getItem());
+        $this->assertSame(2, $decoded->getQuantity());
+    }
+
+    public function test_create_order_rejects_when_grpc_inventory_reports_out_of_stock(): void
+    {
+        $mockGrpc = Mockery::mock(GrpcInventoryClient::class);
+        $mockGrpc->shouldReceive('reserveStock')
+            ->once()
+            ->andReturn([
+                'connected' => true,
+                'success' => false,
+                'message' => "Insufficient stock for 'Out Of Stock Item'",
+                'remaining_stock' => 0,
+                'protocol' => 'gRPC/HTTP2',
+                'latency_ms' => 1.5,
+            ]);
+        $this->app->instance(GrpcInventoryClient::class, $mockGrpc);
+
+        $secret = env('JWT_SECRET', 'super-secret-jwt-key-for-microservices-demo-2026');
+        $token = $this->createTestJwt([
+            'sub' => 1,
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'role' => 'customer',
+        ], $secret);
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer {$token}",
+        ])->postJson('/api', [
+            'item' => 'Out Of Stock Item',
+            'amount' => 500000,
+            'quantity' => 1,
+        ]);
+
+        $response->assertStatus(409)
+                 ->assertJsonPath('error', 'Out of stock')
+                 ->assertJsonPath('inventory_grpc.protocol', 'gRPC/HTTP2');
     }
 }

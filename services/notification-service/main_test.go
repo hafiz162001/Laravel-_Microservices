@@ -74,3 +74,4 @@ func TestMetricsEndpoint(t *testing.T) {
 		t.Fatalf("missing Prometheus metric in body: %s", rec.Body.String())
 	}
 }
+

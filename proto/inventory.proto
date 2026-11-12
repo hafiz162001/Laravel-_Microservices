@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package inventory;
+
+option go_package = "inventory-service/pb";
+option php_namespace = "App\\Grpc\\Inventory";
+option php_metadata_namespace = "App\\Grpc\\GPBMetadata";
+
+service InventoryService {
+  rpc GetStock (GetStockRequest) returns (GetStockResponse);
+  rpc ReserveStock (ReserveStockRequest) returns (ReserveStockResponse);
+}
+
+message GetStockRequest {
+  string item = 1;
+}
+
+message GetStockResponse {
+  string item = 1;
+  int32 available_stock = 2;
+  bool in_stock = 3;
+}
+
+message ReserveStockRequest {
+  string order_id = 1;
+  string item = 2;
+  int32 quantity = 3;
+}
+
+message ReserveStockResponse {
+  bool success = 1;
+  string message = 2;
+  int32 remaining_stock = 3;
+}

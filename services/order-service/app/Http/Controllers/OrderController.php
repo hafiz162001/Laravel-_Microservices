@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\GrpcInventoryClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -64,6 +65,17 @@ class OrderController extends Controller
         return response($body, 200, ['Content-Type' => 'text/plain; version=0.0.4; charset=utf-8']);
     }
 
+    public function checkStock(Request $request, GrpcInventoryClient $inventoryClient): JsonResponse
+    {
+        $item = $request->query('item', 'MacBook Pro M3');
+        $stock = $inventoryClient->getStock($item);
+
+        return response()->json([
+            'service' => 'order-service',
+            'inventory_grpc' => $stock,
+        ], $stock['connected'] ? 200 : 503);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $authUser = $request->input('auth_user');
@@ -119,35 +131,48 @@ class OrderController extends Controller
         ])->header('X-Cache', 'MISS');
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, GrpcInventoryClient $inventoryClient): JsonResponse
     {
         $validated = $request->validate([
             'item' => 'required|string|max:255',
             'amount' => 'required|numeric|min:1000',
+            'quantity' => 'sometimes|integer|min:1|max:1000',
         ]);
 
         $authUser = $request->input('auth_user');
         $userId = $authUser['sub'] ?? 'guest';
+        $quantity = (int) ($validated['quantity'] ?? 1);
         $orderId = 'ORD-' . strtoupper(bin2hex(random_bytes(4)));
+
+        // 1. Cek & reservasi stok secara sinkron melalui gRPC (HTTP/2 + Protobuf) ke inventory-service (Go)
+        $grpcResult = $inventoryClient->reserveStock($orderId, $validated['item'], $quantity);
+        if (($grpcResult['connected'] ?? false) && !($grpcResult['success'] ?? false)) {
+            return response()->json([
+                'error' => 'Out of stock',
+                'message' => $grpcResult['message'],
+                'inventory_grpc' => $grpcResult,
+            ], 409);
+        }
 
         $orderData = [
             'order_id' => $orderId,
             'user_id' => $userId,
             'user_email' => $authUser['email'] ?? null,
             'item' => $validated['item'],
+            'quantity' => $quantity,
             'amount' => $validated['amount'],
             'status' => 'PENDING',
             'created_at' => now()->toIso8601String()
         ];
 
-        // Simpan ke persistent store sementara di Redis & invalidasi read-cache
+        // 2. Simpan ke persistent store sementara di Redis & invalidasi read-cache
         $stored = Cache::get("orders_store_user_{$userId}", []);
         array_unshift($stored, $orderData);
         Cache::put("orders_store_user_{$userId}", $stored, 3600);
         Cache::forget("orders_cache_user_{$userId}");
         $this->incrementMetric('metrics:orders_created_total');
 
-        // Publikasikan event nyata ke Message Broker (RabbitMQ)
+        // 3. Publikasikan event nyata ke Message Broker (RabbitMQ)
         $rabbitHost = env('RABBITMQ_HOST', 'rabbitmq');
         $rabbitPort = (int) env('RABBITMQ_PORT', 5672);
         $rabbitUser = env('RABBITMQ_USER', 'guest');
@@ -184,8 +209,9 @@ class OrderController extends Controller
         }
 
         return response()->json([
-            'message' => 'Order created successfully and event published to RabbitMQ queue',
+            'message' => 'Order created successfully, stock reserved via gRPC, and event published to RabbitMQ queue',
             'order' => $orderData,
+            'inventory_grpc' => $grpcResult,
             'event' => [
                 'queue' => $queueName,
                 'status' => $eventStatus

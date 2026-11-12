@@ -80,3 +80,4 @@ http:
       loadBalancer:
         servers:
           - url: "http://frontend:80"
+

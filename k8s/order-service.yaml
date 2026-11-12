@@ -26,6 +26,8 @@ spec:
           env:
             - name: APP_NAME
               value: "OrderService"
+            - name: INVENTORY_GRPC_URL
+              value: "http://inventory-service:50051"
             - name: APP_KEY
               valueFrom:
                 secretKeyRef:
@@ -97,3 +99,4 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+

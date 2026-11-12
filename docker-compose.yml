@@ -136,6 +136,7 @@ services:
       REDIS_PORT: 6379
       JWT_SECRET: "super-secret-jwt-key-for-microservices-demo-2026"
       AUTH_SERVICE_URL: "http://auth-service:8000"
+      INVENTORY_GRPC_URL: "http://inventory-service:50051"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: guest
@@ -144,6 +145,24 @@ services:
       - order-db
       - redis
       - rabbitmq
+      - inventory-service
+    networks:
+      - micro-network
+
+  # ==========================================
+  # 7. INVENTORY SERVICE (Go gRPC Server)
+  # ==========================================
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: Dockerfile
+    container_name: micro_inventory_service
+    ports:
+      - "50051:50051" # Native gRPC port (HTTP/2 + Protobuf)
+      - "8004:8004"   # HTTP health & Prometheus metrics
+    environment:
+      GRPC_PORT: 50051
+      HTTP_PORT: 8004
     networks:
       - micro-network
 

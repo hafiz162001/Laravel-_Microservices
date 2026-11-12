@@ -31,3 +31,4 @@ spec:
                 name: notification-service
                 port:
                   number: 8003
+
