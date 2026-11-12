@@ -51,7 +51,7 @@ services:
     environment:
       APP_NAME: "AuthService"
       APP_ENV: local
-      APP_KEY: "base64:authservicekeyplaceholdershouldbe32bytes="
+      APP_KEY: "base64:QbC466E+gwhKgonS6YsbOtn+A/m5hGpR616T5CNTAeE="
       APP_DEBUG: "true"
       DB_CONNECTION: pgsql
       DB_HOST: auth-db
@@ -86,12 +86,10 @@ services:
       context: ./services/order-service
       dockerfile: Dockerfile
     container_name: micro_order_service
-    volumes:
-      - ./services/order-service:/var/www
     environment:
       APP_NAME: "OrderService"
       APP_ENV: local
-      APP_KEY: "base64:orderservicekeyplaceholdershouldbe32bytes="
+      APP_KEY: "base64:Gdmu18eGg28eYcqaxejyKiAzT8NM66bB0RFfczeZ5qE="
       APP_DEBUG: "true"
       DB_CONNECTION: pgsql
       DB_HOST: order-db

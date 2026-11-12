@@ -1,0 +1,103 @@
+name: E2E Microservices Integration Test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  e2e-docker-compose:
+    name: Full Stack Docker Compose E2E Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and start all microservices
+        run: docker compose up -d --build
+
+      - name: Wait for services and databases to be ready
+        run: |
+          echo "Waiting for Gateway & Services..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost/healthz > /dev/null && \
+               curl -sf http://localhost/api/auth/health > /dev/null && \
+               curl -sf http://localhost/api/orders/health > /dev/null; then
+              echo "All services are healthy!"
+              break
+            fi
+            echo "Attempt $i/30: waiting..."
+            sleep 3
+          done
+          curl -f http://localhost/healthz
+          curl -f http://localhost/api/auth/health
+          curl -f http://localhost/api/orders/health
+
+      - name: Wait for RabbitMQ to accept AMQP connections
+        run: |
+          for i in $(seq 1 20); do
+            if docker compose exec -T rabbitmq rabbitmq-diagnostics -q ping 2>/dev/null; then
+              echo "RabbitMQ is ready!"
+              break
+            fi
+            echo "Waiting for RabbitMQ ($i/20)..."
+            sleep 3
+          done
+
+      - name: Run database migrations in auth-service
+        run: |
+          for i in $(seq 1 10); do
+            if docker compose exec -T auth-service php artisan migrate --force; then
+              echo "Migrations succeeded!"
+              break
+            fi
+            echo "Waiting for Postgres ($i/10)..."
+            sleep 3
+          done
+
+      - name: Run End-to-End API Flow via Nginx Gateway
+        run: |
+          set -e
+          echo "1. Registering user..."
+          REG_RES=$(curl -sf -X POST http://localhost/api/auth/register \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d '{"name":"CI Test User","email":"ci@example.com","password":"password123"}')
+          echo "Register response: $REG_RES"
+
+          echo "2. Logging in to get JWT..."
+          LOGIN_RES=$(curl -sf -X POST http://localhost/api/auth/login \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d '{"email":"ci@example.com","password":"password123"}')
+          TOKEN=$(echo "$LOGIN_RES" | jq -r '.access_token')
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+          echo "JWT Token acquired!"
+
+          echo "3. Fetching orders via order-service with JWT..."
+          ORDERS_RES=$(curl -sf http://localhost/api/orders/ \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/json")
+          echo "Orders response: $ORDERS_RES"
+
+          echo "4. Creating order & publishing event to RabbitMQ..."
+          CREATE_RES=$(curl -sf -X POST http://localhost/api/orders/ \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d '{"item":"CI/CD Microservices Book","amount":150000}')
+          echo "Create Order response: $CREATE_RES"
+
+          EVENT_STATUS=$(echo "$CREATE_RES" | jq -r '.event.status')
+          echo "RabbitMQ Event Status: $EVENT_STATUS"
+          test "$EVENT_STATUS" = "PUBLISHED"
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose logs --tail=50
+
+      - name: Tear down containers
+        if: always()
+        run: docker compose down -v
