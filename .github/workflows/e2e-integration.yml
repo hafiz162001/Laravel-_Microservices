@@ -37,12 +37,12 @@ jobs:
 
       - name: Wait for RabbitMQ to accept AMQP connections
         run: |
-          for i in $(seq 1 20); do
-            if docker compose exec -T rabbitmq rabbitmq-diagnostics -q ping 2>/dev/null; then
-              echo "RabbitMQ is ready!"
+          for i in $(seq 1 30); do
+            if docker compose exec -T order-service php -r "exit(@fsockopen('rabbitmq', 5672) ? 0 : 1);" 2>/dev/null; then
+              echo "RabbitMQ AMQP port 5672 is ready!"
               break
             fi
-            echo "Waiting for RabbitMQ ($i/20)..."
+            echo "Waiting for RabbitMQ port 5672 ($i/30)..."
             sleep 3
           done
 
@@ -101,3 +101,4 @@ jobs:
       - name: Tear down containers
         if: always()
         run: docker compose down -v
+
