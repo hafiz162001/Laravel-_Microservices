@@ -141,3 +141,4 @@ class GrpcInventoryClient
         return ['ok' => true, 'error' => null];
     }
 }
+

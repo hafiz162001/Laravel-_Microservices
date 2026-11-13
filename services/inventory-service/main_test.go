@@ -69,3 +69,4 @@ func TestHealthAndMetricsEndpoints(t *testing.T) {
 		t.Fatalf("unexpected metrics response: %d %s", recM.Code, recM.Body.String())
 	}
 }
+

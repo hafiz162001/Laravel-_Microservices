@@ -32,3 +32,4 @@ message ReserveStockResponse {
   string message = 2;
   int32 remaining_stock = 3;
 }
+

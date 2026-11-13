@@ -18,3 +18,4 @@ COPY --from=builder /app/inventory-service .
 EXPOSE 50051 8004
 
 CMD ["./inventory-service"]
+
